@@ -1,0 +1,182 @@
+---
+title: "Big Mac Index Analysis"
+author: "Pragya Verma"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(include = TRUE, warning = FALSE, message = FALSE)
+
+library(dplyr)     # For dataframe manipulation
+library(simcf)     # For panel functions and simulators
+library(tseries)   # For ADF unit root test
+library(plm)       # Econometrics package for linear panel models
+library(nlme)      # Package for estimation - RE models
+library(plm)       # Package for estimation - FE models
+library(kableExtra)# Beautifying the table
+library(ggplot2)   # package for plotting
+library(gridExtra)
+library(grid)
+library(MASS)      # for random nv
+```
+
+```{r}
+df <- read.csv('cleanedData/processed_data_I.csv')
+attach(df)
+head(df)
+```
+
+Plotting the time series, 
+```{r, echo = FALSE}
+# Plotting the time series
+ggplot(data = df, aes(x=year, y=big_mac_index)) + 
+  geom_line(aes(colour=iso_a3))
+```
+From above plot we can see that there is no trend present in the data. 
+
+Checking for stationarity,
+
+Performing Im-Pesaran-Shin panel unit root tests for Big Mac index assuming fixed intercepts-
+```{r, echo = FALSE}
+ts <- with(df, data.frame(split(big_mac_index, as.character(year)))) 
+
+purtest(ts, pmax = 4, exo = "intercept", test = "ips")
+```
+```{r, echo = FALSE}
+ts <- with(df, data.frame(split(big_mac_index, as.character(year)))) 
+
+purtest(ts, pmax = 4, exo = "trend", test = "ips")
+```
+
+We can see that the data is stationary in nature.
+
+## Plots 
+
+```{r}
+# group Big mac index by country
+country.bigmac <- aggregate(df$big_mac_index, list(df$iso_a3), FUN=mean)
+
+# Barplot
+ggplot(country.bigmac, aes(x=Group.1, y=x)) + 
+  geom_bar(stat = "identity") +
+  xlab("Country") + ylab("Big Mac Index") + ggtitle("Dollar Valuation by Country")
+```
+
+
+```{r}
+# group Big mac index by country
+year.bigmac <- aggregate(df$big_mac_index, list(df$year), FUN=mean)
+
+# Barplot
+ggplot(year.bigmac, aes(x=Group.1, y=x)) + 
+  geom_line(stat = "identity") +
+  xlab("Country") + ylab("Big Mac Index") + ggtitle("Annual Dollar Valuation")
+```
+
+
+```{r}
+# basic scatterplot
+gdp <- ggplot(df, aes(x=GDP.per.capita, y=big_mac_index)) + 
+    geom_point()
+
+ca <- ggplot(df, aes(x=Curr.Acc.Balance, y=big_mac_index)) + 
+    geom_point()
+
+labcomp <- ggplot(df, aes(x=labor.comp.per.capita, y=big_mac_index)) + 
+    geom_point()
+
+ggb <- ggplot(df, aes(x=GGB, y=big_mac_index)) + 
+    geom_point()
+
+grid.arrange(grobs = list(gdp, ca, labcomp, ggb), ncol=2, 
+             main="Absolute valuation vs Big Mac determinants graph")
+```
+
+
+## ACF and PACF plots 
+
+```{r}
+countrylist <- unique(Country.Code)
+```
+
+```{r}
+# Look at the ACF for each country
+for (i in 1:length(countrylist)) {
+    currcty <- countrylist[i]
+    acf(df$big_mac_index[Country.Code==currcty])
+    dev.off()
+}
+```
+
+```{r}
+# Look at the PACF
+for (i in 1:length(countrylist)) {
+    currcty <- countrylist[i]
+    pacf(df$big_mac_index[Country.Code==currcty])
+    dev.off()
+}
+
+```
+
+## Hausmen Test
+
+### Pooled OLS
+```{r}
+model <- big_mac_index ~ GDP.per.capita + Curr.Acc.Balance + GGB + labor.comp.per.capita
+
+pooled_ols_plm <- plm(model, data = df, 
+                      index = c("Country.Code", "year"), 
+                      effect = "individual", model = "pooling")
+
+summary(pooled_ols_plm)
+```
+
+### Fixed Effects
+```{r}
+fe_model_plm <- plm(model, data = df, 
+                    index = c("Country.Code", "year"), 
+                    effect = "individual", model = "within")
+
+summary(fe_model_plm)
+```
+
+
+
+### Random effects
+```{r}
+re_model_plm <- plm(model, data = df, 
+                    index = c("Country.Code", "year"), 
+                    effect = "individual", model = "random")
+
+summary(re_model_plm)
+```
+
+
+```{r}
+#hausmen test
+phtest(fe_model_plm, re_model_plm)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
