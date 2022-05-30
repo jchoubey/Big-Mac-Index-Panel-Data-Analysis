@@ -98,25 +98,23 @@ grid.arrange(grobs = list(gdp, ca, labcomp, ggb), ncol=2,
 
 ```{r}
 countrylist <- unique(Country.Code)
+new.country <- countrylist[-20]
 ```
 
 ```{r}
 # Look at the ACF for each country
-for (i in 1:length(countrylist)) {
-    currcty <- countrylist[i]
-    acf(df$big_mac_index[Country.Code==currcty])
-    dev.off()
+for (i in 1:length(new.country)) {
+    currcty <- new.country[i]
+    acf(df$big_mac_index[new.country==currcty])
 }
 ```
 
 ```{r}
 # Look at the PACF
-for (i in 1:length(countrylist)) {
-    currcty <- countrylist[i]
-    pacf(df$big_mac_index[Country.Code==currcty])
-    dev.off()
+for (i in 1:length(new.country)) {
+    currcty <- new.country[i]
+    pacf(df$big_mac_index[new.country==currcty])
 }
-
 ```
 
 ## Hausmen Test
@@ -125,7 +123,7 @@ for (i in 1:length(countrylist)) {
 ```{r}
 model <- big_mac_index ~ GDP.per.capita + Curr.Acc.Balance + GGB + labor.comp.per.capita
 
-pooled_ols_plm <- plm(model, data = df, 
+pooled_ols_plm <- plm(model, data = df[df$iso_a3 != "USA", ], 
                       index = c("Country.Code", "year"), 
                       effect = "individual", model = "pooling")
 
@@ -157,6 +155,9 @@ summary(re_model_plm)
 #hausmen test
 phtest(fe_model_plm, re_model_plm)
 ```
+The Hausmen test tells us that the appropriate model is the fixed effect model.
+
+
 
 
 
