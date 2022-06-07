@@ -35,6 +35,41 @@ ggplot(data = df, aes(x=year, y=big_mac_index)) +
 ```
 From above plot we can see that there is no trend present in the data. 
 
+```{r}
+countrylist <- unique(Country.Code)
+new.country <- countrylist[-20]
+```
+
+So we will check the stationarity for each time series country wise.
+```{r, echo=FALSE}
+n = 20
+# Check for a unit root in each country
+PPtest.pvalues <- rep(0,n)
+adftest.pvalues <- rep(0,n)
+for (i in 1:length(new.country)) {
+    currcty <- new.country[i]
+
+    # Check PP unit root test, omitting errors due to short series
+    curPP <- try(PP.test(big_mac_index[new.country==currcty ])$p.value)
+    if (any(class(curPP)=="try-error")) curPP <- NA
+    PPtest.pvalues[i] <- curPP
+    
+    # Check ADF unit root test
+    curadf <- try(adf.test(big_mac_index[new.country==currcty ])$p.value)
+    if (any(class(curadf)=="try-error")) curadf <- NA
+    adftest.pvalues[i] <- curadf
+  }
+
+```
+
+Plotting the histograms of the p-values - 
+```{r, echo=FALSE}
+hist(PPtest.pvalues)          # Plot a histogram of the p-values
+
+hist(adftest.pvalues)         # Plot a histogram of the p-values
+```
+
+
 Checking for stationarity,
 
 Performing Im-Pesaran-Shin panel unit root tests for Big Mac index assuming fixed intercepts-
@@ -50,6 +85,8 @@ purtest(ts, pmax = 4, exo = "trend", test = "ips")
 ```
 
 We can see that the data is stationary in nature.
+
+
 
 ## Plots 
 
@@ -92,14 +129,22 @@ ggb <- ggplot(df, aes(x=GGB, y=big_mac_index)) +
 grid.arrange(grobs = list(gdp, ca, labcomp, ggb), ncol=2, 
              main="Absolute valuation vs Big Mac determinants graph")
 ```
+```{r, echo = FALSE}
+ts <- with(df, data.frame(split(relative_PPP, as.character(year)))) 
+
+purtest(ts, pmax = 4, exo = "trend", test = "ips")
+```
+
+```{r}
+adf.test(df$relative_PPP)
+```
+
+```{r}
+pp.test(df$relative_PPP)
+```
 
 
 ## ACF and PACF plots 
-
-```{r}
-countrylist <- unique(Country.Code)
-new.country <- countrylist[-20]
-```
 
 ```{r}
 # Look at the ACF for each country
@@ -117,13 +162,13 @@ for (i in 1:length(new.country)) {
 }
 ```
 
-## Hausmen Test
+## Model 1
 
 ### Pooled OLS
 ```{r}
 model <- big_mac_index ~ GDP.per.capita + Curr.Acc.Balance + GGB + labor.comp.per.capita
 
-pooled_ols_plm <- plm(model, data = df[df$iso_a3 != "USA", ], 
+pooled_ols_plm <- plm(model, data = df[df$iso_a3 != "USA" & df$iso_a3 != "EUK", ], 
                       index = c("Country.Code", "year"), 
                       effect = "individual", model = "pooling")
 
@@ -132,7 +177,7 @@ summary(pooled_ols_plm)
 
 ### Fixed Effects
 ```{r}
-fe_model_plm <- plm(model, data = df, 
+fe_model_plm <- plm(model, data = df[(df$iso_a3 != "USA") & (df$iso_a3 != "EUK"), ], 
                     index = c("Country.Code", "year"), 
                     effect = "individual", model = "within")
 
@@ -143,7 +188,7 @@ summary(fe_model_plm)
 
 ### Random effects
 ```{r}
-re_model_plm <- plm(model, data = df, 
+re_model_plm <- plm(model, data = df[(df$iso_a3 != "USA")  & (df$iso_a3 != "EUK"), ], 
                     index = c("Country.Code", "year"), 
                     effect = "individual", model = "random")
 
@@ -157,13 +202,48 @@ phtest(fe_model_plm, re_model_plm)
 ```
 The Hausmen test tells us that the appropriate model is the fixed effect model.
 
+```{r}
+# averaging by year
+summarize.df <- df%>%group_by(year)%>%summarise_all("mean")
+summarize.df
+```
+
+## Model 2
+
+```{r}
+df$big.mac.afforability <- (df$GDP.per.capita/df$dollar_price) / 365
+head(df)
+```
+
+### Pooled OLS
+```{r}
+model.2 <- big_mac_index ~ big.mac.afforability + Curr.Acc.Balance + GGB + labor.comp.per.capita
+
+pooled_ols_plm <- plm(model.2, data = df[df$iso_a3 != "USA" & df$iso_a3 != "EUK", ], 
+                      index = c("Country.Code", "year"), 
+                      effect = "individual", model = "pooling")
+
+summary(pooled_ols_plm)
+```
 
 
+### Fixed Effects
+```{r}
+fe_model_plm <- plm(model.2, data = df[(df$iso_a3 != "USA") & (df$iso_a3 != "EUK"), ], 
+                    index = c("Country.Code", "year"), 
+                    effect = "individual", model = "within")
 
+summary(fe_model_plm)
+```
 
+## Random Effect
+```{r}
+re_model_plm <- plm(model.2, data = df[(df$iso_a3 != "USA") & (df$iso_a3 != "EUK"), ], 
+                    index = c("Country.Code", "year"), 
+                    effect = "individual", model = "random")
 
-
-
+summary(re_model_plm)
+```
 
 
 
